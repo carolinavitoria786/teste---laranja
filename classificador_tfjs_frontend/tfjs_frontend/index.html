@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Classificador JS</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; text-align: center }
+    .preview { max-width: 300px; margin-top: 1rem; border-radius: 1rem }
+  </style>
+</head>
+<body>
+  <h1>Classificador Inteligente (JS)</h1>
+
+  <label for="modelSelect">Escolha o modelo:</label>
+  <select id="modelSelect">
+    <option value="catdog">Gato × Cachorro</option>
+    <option value="orange">Laranjas</option>
+  </select>
+
+  <br><br>
+  <input type="file" id="imageInput" accept="image/*" />
+  <img id="preview" class="preview" hidden />
+  <h2 id="result">Resultado aparecerá aqui</h2>
+
+  <script>
+    const modelMap = {
+      catdog: {
+        path: 'web_models/catdog/model.json',
+        labels: ['cat', 'dog']
+      },
+      orange: {
+        path: 'web_models/orange/model.json',
+        labels: ['fresh_orange', 'rotten_orange', 'sweet_orange']
+      }
+    };
+
+    let currentModel = null;
+    const modelSelect = document.getElementById("modelSelect");
+    const imageInput = document.getElementById("imageInput");
+    const preview = document.getElementById("preview");
+    const result = document.getElementById("result");
+
+    async function loadModel() {
+      const modelId = modelSelect.value;
+      const info = modelMap[modelId];
+      result.textContent = "Carregando modelo...";
+      currentModel = await tf.loadLayersModel(info.path);
+      result.textContent = "Modelo carregado. Envie uma imagem.";
+    }
+
+    modelSelect.addEventListener("change", loadModel);
+    window.addEventListener("load", loadModel);
+
+    imageInput.addEventListener("change", async () => {
+      const file = imageInput.files[0];
+      if (!file || !currentModel) return;
+
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      preview.src = img.src;
+      preview.hidden = false;
+
+      await new Promise(resolve => img.onload = resolve);
+
+      const inputSize = currentModel.inputs[0].shape[1];
+      const tensor = tf.browser.fromPixels(img)
+        .resizeBilinear([inputSize, inputSize])
+        .toFloat()
+        .div(255)
+        .expandDims();
+
+      const pred = currentModel.predict(tensor);
+      const data = await pred.data();
+      const labels = modelMap[modelSelect.value].labels;
+
+      const idx = data.indexOf(Math.max(...data));
+      const confidence = (data[idx] * 100).toFixed(1);
+      result.textContent = `Resultado: ${labels[idx]} (${confidence}%)`;
+    });
+  </script>
+</body>
+</html>
